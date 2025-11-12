@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 import '../../core/colors.dart';
+import '../gallery/gallery_screen.dart';
+import '../../services/photo_storage_service.dart';
+import '../../services/white_balance_service.dart';
 
 class V169CameraScreen extends StatefulWidget {
   const V169CameraScreen({super.key});
@@ -28,6 +32,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
   bool _showFilterPopup = false;
   bool _showMorePopup = false;
   bool _showGridPopup = false;
+  bool _showWBPopup = false;
   
   // UI State - Settings
   bool _isFlashOn = false;
@@ -35,6 +40,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
   String _selectedTimer = "OFF";
   String _selectedFilter = "None";
   String _selectedGrid = "None";
+  final WhiteBalanceService _whiteBalanceService = WhiteBalanceService();
   
   @override
   void initState() {
@@ -120,6 +126,10 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
           _buildFilterPopup(),
           _buildMorePopup(),
           _buildGridPopup(),
+          _buildWBPopup(),
+          
+          // Bottom Controls
+          _buildBottomControls(),
           
           // Loading/Error overlay
           if (_isLoading || _error.isNotEmpty) _buildStatusOverlay(),
@@ -141,10 +151,38 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
     return Positioned.fill(
       child: AspectRatio(
         aspectRatio: _controller!.value.aspectRatio,
-        child: CameraPreview(_controller!),
+        child: Stack(
+          children: [
+            CameraPreview(_controller!),
+            // WB Color Filter Overlay
+            _buildWBOverlay(),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildWBOverlay() {
+    // Convert từ V169 WhiteBalanceService
+    Color? overlayColor = _whiteBalanceService.getPreviewOverlayColor();
+    
+    if (overlayColor == null) {
+      return const SizedBox.shrink();
+    }
+    
+    // Sử dụng blend mode từ WhiteBalanceService (convert từ V169)
+    BlendMode blendMode = _whiteBalanceService.getPreviewBlendMode();
+    
+    return Positioned.fill(
+      child: Container(
+        decoration: BoxDecoration(
+          color: overlayColor,
+          backgroundBlendMode: blendMode,
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildTopControls() {
     return Positioned(
@@ -523,6 +561,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                     _buildMoreMenuItem(Icons.grid_on, "Grid"),
                     _buildMoreMenuItem(Icons.center_focus_strong, "Focus"),
                     _buildMoreMenuItem(Icons.exposure, "Exposure"),
+                    _buildMoreMenuItem(Icons.wb_sunny, "WB"),
                     _buildMoreMenuItem(Icons.view_comfy, "Collage"),
                   ],
                 ),
@@ -545,6 +584,10 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
         if (label == "Grid") {
           setState(() {
             _showGridPopup = true;
+          });
+        } else if (label == "WB") {
+          setState(() {
+            _showWBPopup = true;
           });
         }
         // Add other menu actions here
@@ -688,6 +731,262 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
     );
   }
 
+  Widget _buildWBPopup() {
+    // WB options theo mô tả: Default, Foggy, Daylight, Spike, Gloam
+    final List<Map<String, dynamic>> wbOptions = [
+      {'name': 'Default', 'color': Colors.white, 'description': 'Natural'},
+      {'name': 'Foggy', 'color': Colors.blue[300], 'description': 'Cool Blue'},
+      {'name': 'Daylight', 'color': Colors.orange[300], 'description': 'Warm Orange'},
+      {'name': 'Spike', 'color': Colors.yellow[400], 'description': 'Strong Yellow'},
+      {'name': 'Gloam', 'color': Colors.purple[300], 'description': 'Purple Tint'},
+    ];
+
+    return Positioned(
+      bottom: 100, // Positioned at bottom như Android layout
+      left: 0,
+      right: 0,
+      child: Visibility(
+        visible: _showWBPopup,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.only(bottom: 18),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header với title và close button
+              Padding(
+                padding: const EdgeInsets.only(top: 8, right: 8),
+                child: Row(
+                  children: [
+                    const Spacer(),
+                    // Title "White Balance" ở giữa
+                    const Text(
+                      "White Balance",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    // Close button
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _showWBPopup = false;
+                        });
+                      },
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // WB options trong horizontal list
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                height: 80,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: wbOptions.length,
+                  itemBuilder: (context, index) {
+                    final wbOption = wbOptions[index];
+                    final isSelected = _whiteBalanceService.currentMode.name == wbOption['name'].toString().toUpperCase();
+                    
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _whiteBalanceService.setWhiteBalance(_getWBModeFromString(wbOption['name']));
+                          _showWBPopup = false;
+                        });
+                      },
+                      child: Container(
+                        width: 70,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(10),
+                          border: isSelected 
+                              ? Border.all(color: AppColors.primary, width: 2)
+                              : null,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Color preview circle
+                            Container(
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: wbOption['color'],
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // WB name
+                            Text(
+                              wbOption['name'],
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            // Description
+                            Text(
+                              wbOption['description'],
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 8,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomControls() {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Visibility(
+        visible: _showBottomControls,
+        child: SafeArea(
+          child: Container(
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5), // Tương tự Android black_50
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Library Button (Xem ảnh đã chụp trong máy)
+                  GestureDetector(
+                    onTap: () {
+                      // Navigate to gallery screen
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const GalleryScreen()),
+                      );
+                    },
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.photo_library,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "Library",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  // Capture Button (Button chụp)
+                  GestureDetector(
+                    onTap: _takePicture,
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(40),
+                        border: Border.all(color: Colors.grey[300]!, width: 4),
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Switch Camera Button (Chuyển đổi camera trước/sau)
+                  GestureDetector(
+                    onTap: _switchCamera,
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.flip_camera_ios,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "Flip",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatusOverlay() {
     return Positioned.fill(
       child: Container(
@@ -741,6 +1040,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
       _showFilterPopup = false;
       _showMorePopup = false;
       _showGridPopup = false;
+      _showWBPopup = false;
     });
   }
 
@@ -764,5 +1064,92 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
     } catch (e) {
       print('Error toggling flash: $e');
     }
+  }
+
+  Future<void> _takePicture() async {
+    if (_controller == null || !_isInitialized) return;
+    
+    try {
+      // Chụp ảnh
+      final XFile image = await _controller!.takePicture();
+      File imageFile = File(image.path);
+      
+      // Áp dụng WB filter lên ảnh nếu có (convert từ V169)
+      if (_whiteBalanceService.currentMode != WhiteBalanceMode.DEFAULT) {
+        imageFile = await _whiteBalanceService.applyWhiteBalanceToImage(imageFile);
+      }
+      
+      // Lưu vào bộ nhớ trong app
+      final fileName = await PhotoStorageService.savePhoto(imageFile);
+      
+      if (mounted) {
+        if (fileName != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Photo saved with ${_whiteBalanceService.currentMode.name} WB: $fileName'),
+              duration: const Duration(seconds: 2),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to save photo'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+      
+      // Xóa file tạm
+      await imageFile.delete();
+      
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error taking picture: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Convert string name sang WhiteBalanceMode enum (từ V169 gốc)
+  WhiteBalanceMode _getWBModeFromString(String name) {
+    switch (name) {
+      case 'Default':
+        return WhiteBalanceMode.DEFAULT;
+      case 'Foggy':
+        return WhiteBalanceMode.FOGGY;
+      case 'Daylight':
+        return WhiteBalanceMode.DAYLIGHT;
+      case 'Spike':
+        return WhiteBalanceMode.SPIKE;
+      case 'Gloam':
+        return WhiteBalanceMode.GLOAM;
+      default:
+        return WhiteBalanceMode.DEFAULT;
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameras.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No other camera available'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+      return;
+    }
+    
+    setState(() {
+      _isLoading = true;
+      _currentCameraIndex = (_currentCameraIndex + 1) % _cameras.length;
+    });
+    
+    await _setupCamera(_currentCameraIndex);
   }
 }
