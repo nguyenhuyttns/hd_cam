@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/photo_storage_service.dart';
+import '../../view_models/gallery_view_model.dart';
 
 class GalleryScreen extends StatefulWidget {
   const GalleryScreen({super.key});
@@ -9,36 +10,26 @@ class GalleryScreen extends StatefulWidget {
 }
 
 class _GalleryScreenState extends State<GalleryScreen> {
-  List<PhotoInfo> _photos = [];
-  bool _isLoading = true;
-  String _error = '';
+  late final GalleryViewModel _viewModel;
 
   @override
   void initState() {
     super.initState();
-    _loadPhotos();
+    _viewModel = GalleryViewModel();
+    _viewModel.addListener(_onViewModelChanged);
+    _viewModel.initialize();
   }
 
-  Future<void> _loadPhotos() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = '';
-      });
+  @override
+  void dispose() {
+    _viewModel.removeListener(_onViewModelChanged);
+    _viewModel.dispose();
+    super.dispose();
+  }
 
-      // Lấy ảnh từ bộ nhớ trong app
-      final photos = await PhotoStorageService.getAllPhotos();
-
-      setState(() {
-        _photos = photos;
-        _isLoading = false;
-      });
-
-    } catch (e) {
-      setState(() {
-        _error = 'Error loading photos: $e';
-        _isLoading = false;
-      });
+  void _onViewModelChanged() {
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -59,7 +50,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loadPhotos,
+            onPressed: () => _viewModel.refreshPhotos(),
           ),
         ],
       ),
@@ -68,13 +59,13 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
 
   Widget _buildBody() {
-    if (_isLoading) {
+    if (_viewModel.isLoading) {
       return const Center(
         child: CircularProgressIndicator(color: Colors.white),
       );
     }
 
-    if (_error.isNotEmpty) {
+    if (_viewModel.hasError) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -86,13 +77,13 @@ class _GalleryScreenState extends State<GalleryScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              _error,
+              _viewModel.error,
               style: const TextStyle(color: Colors.white, fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _loadPhotos,
+              onPressed: () => _viewModel.refreshPhotos(),
               child: const Text('Retry'),
             ),
           ],
@@ -100,7 +91,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
       );
     }
 
-    if (_photos.isEmpty) {
+    if (_viewModel.photos.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -139,9 +130,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
         mainAxisSpacing: 4,
         childAspectRatio: 1,
       ),
-      itemCount: _photos.length,
+      itemCount: _viewModel.photos.length,
       itemBuilder: (context, index) {
-        final photo = _photos[index];
+        final photo = _viewModel.photos[index];
         return GestureDetector(
           onTap: () => _showImageDetail(photo),
           child: Container(
@@ -176,7 +167,10 @@ class _GalleryScreenState extends State<GalleryScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ImageDetailScreen(photoInfo: photo),
+        builder: (context) => ImageDetailScreen(
+          photoInfo: photo,
+          onDelete: _viewModel.deletePhoto,
+        ),
       ),
     );
   }
@@ -184,8 +178,13 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
 class ImageDetailScreen extends StatelessWidget {
   final PhotoInfo photoInfo;
+  final Future<bool> Function(PhotoInfo) onDelete;
 
-  const ImageDetailScreen({super.key, required this.photoInfo});
+  const ImageDetailScreen({
+    super.key, 
+    required this.photoInfo,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +212,7 @@ class ImageDetailScreen extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.white),
-            onPressed: () => _showDeleteDialog(context),
+            onPressed: () => _showDeleteDialog(context, photoInfo),
           ),
         ],
       ),
@@ -255,7 +254,7 @@ class ImageDetailScreen extends StatelessWidget {
     );
   }
 
-  void _showDeleteDialog(BuildContext context) {
+  void _showDeleteDialog(BuildContext context, PhotoInfo photoInfo) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -279,22 +278,14 @@ class ImageDetailScreen extends StatelessWidget {
             ),
             TextButton(
               onPressed: () async {
-                try {
-                  await PhotoStorageService.deletePhoto(photoInfo);
+                final success = await onDelete(photoInfo);
+                if (context.mounted) {
                   Navigator.pop(context); // Close dialog
                   Navigator.pop(context); // Go back to gallery
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Photo deleted'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } catch (e) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Error deleting photo: $e'),
-                      backgroundColor: Colors.red,
+                      content: Text(success ? 'Photo deleted' : 'Failed to delete photo'),
+                      backgroundColor: success ? Colors.green : Colors.red,
                     ),
                   );
                 }

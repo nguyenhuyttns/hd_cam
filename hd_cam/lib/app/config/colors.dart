@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Primary colors
-  static const Color primary = Color(0xFF7C3FFF);
+  // Primary colors từ V169
+  static const Color primary = Color(0xFF183FBF);
   static const Color textMain = Color(0xFF434343);
   static const Color textInactive = Color(0xFFBEB7DB);
   static const Color background = Color(0xFFFEFEFE);

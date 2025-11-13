@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
-import '../../core/colors.dart';
+import '../../app/config/colors.dart';
 import '../gallery/gallery_screen.dart';
 import '../../services/photo_storage_service.dart';
 import '../../services/white_balance_service.dart';
@@ -25,7 +25,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
   // UI State - Top Controls
   bool _showTopControls = true;
   bool _showBottomControls = true;
-  
+
   // UI State - Popups (chỉ 1 popup hiển thị tại 1 thời điểm)
   bool _showRatioPopup = false;
   bool _showTimerPopup = false;
@@ -33,15 +33,14 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
   bool _showMorePopup = false;
   bool _showGridPopup = false;
   bool _showWBPopup = false;
-  
+
   // UI State - Settings
   bool _isFlashOn = false;
   String _selectedRatio = "Full";
   String _selectedTimer = "OFF";
-  String _selectedFilter = "None";
   String _selectedGrid = "None";
   final WhiteBalanceService _whiteBalanceService = WhiteBalanceService();
-  
+
   @override
   void initState() {
     super.initState();
@@ -116,21 +115,21 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
         children: [
           // Camera Preview
           _buildCameraPreview(),
-          
+
           // Top Controls - Positioned like Android layout
           _buildTopControls(),
-          
+
           // Popups - Positioned overlays (chỉ hiển thị 1 tại 1 thời điểm)
           _buildRatioPopup(),
-          _buildTimerPopup(), 
+          _buildTimerPopup(),
           _buildFilterPopup(),
           _buildMorePopup(),
           _buildGridPopup(),
           _buildWBPopup(),
-          
+
           // Bottom Controls
           _buildBottomControls(),
-          
+
           // Loading/Error overlay
           if (_isLoading || _error.isNotEmpty) _buildStatusOverlay(),
         ],
@@ -165,14 +164,14 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
   Widget _buildWBOverlay() {
     // Convert từ V169 WhiteBalanceService
     Color? overlayColor = _whiteBalanceService.getPreviewOverlayColor();
-    
+
     if (overlayColor == null) {
       return const SizedBox.shrink();
     }
-    
+
     // Sử dụng blend mode từ WhiteBalanceService (convert từ V169)
     BlendMode blendMode = _whiteBalanceService.getPreviewBlendMode();
-    
+
     return Positioned.fill(
       child: Container(
         decoration: BoxDecoration(
@@ -182,7 +181,6 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
       ),
     );
   }
-
 
   Widget _buildTopControls() {
     return Positioned(
@@ -213,7 +211,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                     ),
                   ),
                 ),
-                
+
                 // Expanded space để center các controls
                 Expanded(
                   child: Row(
@@ -228,7 +226,10 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                           });
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             border: Border.all(color: Colors.white, width: 1),
                             borderRadius: BorderRadius.circular(4),
@@ -243,7 +244,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                           ),
                         ),
                       ),
-                      
+
                       // Flash Button - tương ứng ivFlash trong Android
                       IconButton(
                         onPressed: _toggleFlash,
@@ -253,7 +254,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                           size: 24,
                         ),
                       ),
-                      
+
                       // Timer Button - tương ứng ivTimer trong Android
                       IconButton(
                         onPressed: () {
@@ -268,7 +269,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                           size: 24,
                         ),
                       ),
-                      
+
                       // Filter Button - tương ứng ivFilter trong Android
                       IconButton(
                         onPressed: () {
@@ -286,7 +287,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                     ],
                   ),
                 ),
-                
+
                 // More Button - tương ứng ivMore trong Android
                 Container(
                   width: 48,
@@ -352,12 +353,19 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                         });
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.primary : Colors.transparent,
+                          color: isSelected
+                              ? AppColors.primary
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: isSelected ? AppColors.primary : Colors.white,
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.white,
                             width: 1,
                           ),
                         ),
@@ -419,12 +427,19 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                         });
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.primary : Colors.transparent,
+                          color: isSelected
+                              ? AppColors.primary
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: isSelected ? AppColors.primary : Colors.white,
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.white,
                             width: 1,
                           ),
                         ),
@@ -458,9 +473,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
         child: Container(
           height: 120,
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.8),
-          ),
+          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.8)),
           child: Column(
             children: [
               const Text(
@@ -475,19 +488,21 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
               // Filter categories
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: ['Popular', 'Adventure', 'Blue Shadow', 'Retro'].map((category) {
+                children: ['Popular', 'Adventure', 'Blue Shadow', 'Retro'].map((
+                  category,
+                ) {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       category,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   );
                 }).toList(),
@@ -506,12 +521,17 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                       decoration: BoxDecoration(
                         color: Colors.grey[700],
                         borderRadius: BorderRadius.circular(8),
-                        border: index == 0 ? Border.all(color: AppColors.primary, width: 2) : null,
+                        border: index == 0
+                            ? Border.all(color: AppColors.primary, width: 2)
+                            : null,
                       ),
                       child: Center(
                         child: Text(
                           'F${index + 1}',
-                          style: const TextStyle(color: Colors.white, fontSize: 10),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                          ),
                         ),
                       ),
                     );
@@ -579,7 +599,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
         setState(() {
           _showMorePopup = false;
         });
-        
+
         // Handle specific menu item actions
         if (label == "Grid") {
           setState(() {
@@ -621,7 +641,16 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
   Widget _buildGridPopup() {
     // Grid options theo Android: None, 3x3, 4x2, Cross, GR.2, GR.3, GR.4, Diagonal, Triangle.2, Triangle
     final List<String> gridOptions = [
-      'None', '3x3', '4x2', 'Cross', 'GR.2', 'GR.3', 'GR.4', 'Diagonal', 'Triangle.2', 'Triangle'
+      'None',
+      '3x3',
+      '4x2',
+      'Cross',
+      'GR.2',
+      'GR.3',
+      'GR.4',
+      'Diagonal',
+      'Triangle.2',
+      'Triangle',
     ];
 
     return Positioned(
@@ -631,10 +660,14 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
       child: Visibility(
         visible: _showGridPopup,
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 10), // layout_marginHorizontal="10dp"
+          margin: const EdgeInsets.symmetric(
+            horizontal: 10,
+          ), // layout_marginHorizontal="10dp"
           padding: const EdgeInsets.only(bottom: 18), // paddingBottom="18dp"
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.5), // bg_corner_16_soild_black50
+            color: Colors.black.withValues(
+              alpha: 0.5,
+            ), // bg_corner_16_soild_black50
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -672,10 +705,13 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                   ],
                 ),
               ),
-              
+
               // Grid options trong GridView 4 cột như Android
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 8), // layout_marginHorizontal="18dp"
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 8,
+                ), // layout_marginHorizontal="18dp"
                 child: GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -689,7 +725,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                   itemBuilder: (context, index) {
                     final gridOption = gridOptions[index];
                     final isSelected = _selectedGrid == gridOption;
-                    
+
                     return GestureDetector(
                       onTap: () {
                         setState(() {
@@ -700,11 +736,13 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                       child: Container(
                         margin: const EdgeInsets.all(2), // layout_margin="2dp"
                         decoration: BoxDecoration(
-                          color: isSelected 
-                              ? AppColors.primary 
+                          color: isSelected
+                              ? AppColors.primary
                               : Colors.black.withValues(alpha: 0.3), // black_30
-                          borderRadius: BorderRadius.circular(10), // cardCornerRadius="10dp"
-                          border: isSelected 
+                          borderRadius: BorderRadius.circular(
+                            10,
+                          ), // cardCornerRadius="10dp"
+                          border: isSelected
                               ? Border.all(color: AppColors.primary, width: 2)
                               : null,
                         ),
@@ -714,7 +752,9 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -736,9 +776,21 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
     final List<Map<String, dynamic>> wbOptions = [
       {'name': 'Default', 'color': Colors.white, 'description': 'Natural'},
       {'name': 'Foggy', 'color': Colors.blue[300], 'description': 'Cool Blue'},
-      {'name': 'Daylight', 'color': Colors.orange[300], 'description': 'Warm Orange'},
-      {'name': 'Spike', 'color': Colors.yellow[400], 'description': 'Strong Yellow'},
-      {'name': 'Gloam', 'color': Colors.purple[300], 'description': 'Purple Tint'},
+      {
+        'name': 'Daylight',
+        'color': Colors.orange[300],
+        'description': 'Warm Orange',
+      },
+      {
+        'name': 'Spike',
+        'color': Colors.yellow[400],
+        'description': 'Strong Yellow',
+      },
+      {
+        'name': 'Gloam',
+        'color': Colors.purple[300],
+        'description': 'Purple Tint',
+      },
     ];
 
     return Positioned(
@@ -789,7 +841,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                   ],
                 ),
               ),
-              
+
               // WB options trong horizontal list
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
@@ -799,12 +851,16 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                   itemCount: wbOptions.length,
                   itemBuilder: (context, index) {
                     final wbOption = wbOptions[index];
-                    final isSelected = _whiteBalanceService.currentMode.name == wbOption['name'].toString().toUpperCase();
-                    
+                    final isSelected =
+                        _whiteBalanceService.currentMode.name ==
+                        wbOption['name'].toString().toUpperCase();
+
                     return GestureDetector(
                       onTap: () {
                         setState(() {
-                          _whiteBalanceService.setWhiteBalance(_getWBModeFromString(wbOption['name']));
+                          _whiteBalanceService.setWhiteBalance(
+                            _getWBModeFromString(wbOption['name']),
+                          );
                           _showWBPopup = false;
                         });
                       },
@@ -814,7 +870,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(10),
-                          border: isSelected 
+                          border: isSelected
                               ? Border.all(color: AppColors.primary, width: 2)
                               : null,
                         ),
@@ -828,7 +884,10 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                               decoration: BoxDecoration(
                                 color: wbOption['color'],
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 1),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -838,7 +897,9 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -876,7 +937,9 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
           child: Container(
             height: 120,
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.5), // Tương tự Android black_50
+              color: Colors.black.withValues(
+                alpha: 0.5,
+              ), // Tương tự Android black_50
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -889,7 +952,9 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                       // Navigate to gallery screen
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const GalleryScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const GalleryScreen(),
+                        ),
                       );
                     },
                     child: Container(
@@ -898,7 +963,10 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -921,7 +989,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                       ),
                     ),
                   ),
-                  
+
                   // Capture Button (Button chụp)
                   GestureDetector(
                     onTap: _takePicture,
@@ -945,7 +1013,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                       ),
                     ),
                   ),
-                  
+
                   // Switch Camera Button (Chuyển đổi camera trước/sau)
                   GestureDetector(
                     onTap: _switchCamera,
@@ -955,7 +1023,10 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1003,11 +1074,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ] else if (_error.isNotEmpty) ...[
-                const Icon(
-                  Icons.error_outline,
-                  color: Colors.red,
-                  size: 64,
-                ),
+                const Icon(Icons.error_outline, color: Colors.red, size: 64),
                 const SizedBox(height: 16),
                 Text(
                   _error,
@@ -1046,12 +1113,13 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
 
   Future<void> _toggleFlash() async {
     if (_controller == null || !_isInitialized) return;
-    
+
     // Only allow flash on back camera
-    if (_cameras[_currentCameraIndex].lensDirection == CameraLensDirection.front) {
+    if (_cameras[_currentCameraIndex].lensDirection ==
+        CameraLensDirection.front) {
       return;
     }
-    
+
     try {
       if (_isFlashOn) {
         await _controller!.setFlashMode(FlashMode.off);
@@ -1068,25 +1136,29 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
 
   Future<void> _takePicture() async {
     if (_controller == null || !_isInitialized) return;
-    
+
     try {
       // Chụp ảnh
       final XFile image = await _controller!.takePicture();
       File imageFile = File(image.path);
-      
+
       // Áp dụng WB filter lên ảnh nếu có (convert từ V169)
       if (_whiteBalanceService.currentMode != WhiteBalanceMode.DEFAULT) {
-        imageFile = await _whiteBalanceService.applyWhiteBalanceToImage(imageFile);
+        imageFile = await _whiteBalanceService.applyWhiteBalanceToImage(
+          imageFile,
+        );
       }
-      
+
       // Lưu vào bộ nhớ trong app
       final fileName = await PhotoStorageService.savePhoto(imageFile);
-      
+
       if (mounted) {
         if (fileName != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Photo saved with ${_whiteBalanceService.currentMode.name} WB: $fileName'),
+              content: Text(
+                'Photo saved with ${_whiteBalanceService.currentMode.name} WB: $fileName',
+              ),
               duration: const Duration(seconds: 2),
               backgroundColor: Colors.green,
             ),
@@ -1100,10 +1172,9 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
           );
         }
       }
-      
+
       // Xóa file tạm
       await imageFile.delete();
-      
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1144,12 +1215,12 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
       );
       return;
     }
-    
+
     setState(() {
       _isLoading = true;
       _currentCameraIndex = (_currentCameraIndex + 1) % _cameras.length;
     });
-    
+
     await _setupCamera(_currentCameraIndex);
   }
 }
