@@ -42,7 +42,7 @@ class BottomControls extends StatelessWidget {
                 // Bottom navigation (Gallery, Capture, Switch)
                 _buildBottomNavigation(),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 16), // Tăng padding dưới
               ],
             ),
           ),

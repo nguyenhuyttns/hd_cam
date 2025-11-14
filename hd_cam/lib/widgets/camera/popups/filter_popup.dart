@@ -28,14 +28,14 @@ class FilterPopup extends StatelessWidget {
     ];
 
     return Positioned(
-      bottom: 202,
+      bottom: 194, // THAY ĐỔI TỪ 202 → 140 (lui xuống 62px)
       left: 0,
       right: 0,
       child: Visibility(
         visible: isVisible,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.7)),
+          decoration: BoxDecoration(color: Colors.black.withOpacity(0.7)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -55,7 +55,7 @@ class FilterPopup extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Colors.white.withValues(alpha: 0.25)
+                                ? Colors.white.withOpacity(0.25)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -92,8 +92,8 @@ class FilterPopup extends StatelessWidget {
                         margin: const EdgeInsets.only(right: 10),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.orange.withValues(alpha: 0.3)
-                              : Colors.grey.withValues(alpha: 0.25),
+                              ? Colors.orange.withOpacity(0.3)
+                              : Colors.grey.withOpacity(0.25),
                           borderRadius: BorderRadius.circular(12),
                           border: isSelected
                               ? Border.all(color: Colors.orange, width: 2)
@@ -106,7 +106,7 @@ class FilterPopup extends StatelessWidget {
                               width: 45,
                               height: 45,
                               decoration: BoxDecoration(
-                                color: Colors.grey.withValues(alpha: 0.4),
+                                color: Colors.grey.withOpacity(0.4),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Center(

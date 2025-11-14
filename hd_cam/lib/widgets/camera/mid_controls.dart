@@ -23,33 +23,38 @@ class MidControls extends StatelessWidget {
     return Positioned(
       left: 0,
       right: 0,
-      bottom: 180, // Vị trí phía trên bottom controls
+      bottom: 154, // Đặt thấp hơn để sát với chữ Photo, Video
       child: AnimatedOpacity(
         opacity: showMidControls ? 1.0 : 0.0,
         duration: const Duration(milliseconds: 300),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // AMP button
-              _buildMidButton(label: 'AMP', onTap: onAmpPressed),
+        child: Container(
+          color: Colors.black.withOpacity(
+            0.4,
+          ), // Thêm màu nền giống BottomControls
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // AMP button
+                _buildMidButton(label: 'AMP', onTap: onAmpPressed),
 
-              // WB button
-              _buildMidButton(label: 'WB', onTap: onWBPressed),
+                // WB button
+                _buildMidButton(label: 'WB', onTap: onWBPressed),
 
-              // Zoom button
-              _buildMidButton(
-                label: '${currentZoom.toStringAsFixed(1)}x',
-                onTap: onZoomPressed,
-              ),
+                // Zoom button
+                _buildMidButton(
+                  label: '${currentZoom.toStringAsFixed(1)}x',
+                  onTap: onZoomPressed,
+                ),
 
-              // Brightness button
-              _buildMidButton(
-                icon: Icons.wb_sunny_outlined,
-                onTap: onBrightnessPressed,
-              ),
-            ],
+                // Brightness button
+                _buildMidButton(
+                  icon: Icons.wb_sunny_outlined,
+                  onTap: onBrightnessPressed,
+                ),
+              ],
+            ),
           ),
         ),
       ),

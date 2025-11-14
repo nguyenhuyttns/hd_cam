@@ -4,6 +4,10 @@ import 'package:camerawesome/camerawesome_plugin.dart';
 import '../../widgets/camera/top_controls.dart';
 import '../../widgets/camera/mid_controls.dart';
 import '../../widgets/camera/bottom_controls.dart';
+import '../../widgets/camera/popups/ratio_popup.dart';
+import '../../widgets/camera/popups/timer_popup.dart';
+import '../../widgets/camera/popups/filter_popup.dart';
+import '../../widgets/camera/popups/more_popup.dart';
 
 class V169CameraScreen extends StatefulWidget {
   const V169CameraScreen({super.key});
@@ -19,18 +23,56 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
   bool _showBottomControls = true;
   bool _showRatioPopup = false;
   bool _showTimerPopup = false;
-  bool _showToolPopup = false;
+  bool _showFilterPopup = false;
   bool _showMorePopup = false;
 
   // Settings
   String _selectedRatio = "16:9";
   bool _isFlashOn = false;
   String _selectedTimer = "OFF";
+  String _selectedFilterCategory = 'Popular';
+  int _selectedFilterIndex = 0;
   double _currentZoom = 1.0;
   bool _isLoading = false;
 
   // Camera state
   CameraState? _cameraState;
+
+  // Check if any popup is visible
+  bool get _hasActivePopup =>
+      _showRatioPopup || _showTimerPopup || _showFilterPopup || _showMorePopup;
+
+  // Check if popup that hides top controls is active (ONLY ratio/timer)
+  bool get _shouldHideTopControls => _showRatioPopup || _showTimerPopup;
+
+  void _hideAllPopupsExcept(String popup) {
+    setState(() {
+      _showRatioPopup = popup == 'ratio';
+      _showTimerPopup = popup == 'timer';
+      _showFilterPopup = popup == 'filter';
+      _showMorePopup = popup == 'more';
+
+      // CHỈ ẨN top controls khi mở ratio/timer popup
+      if (popup == 'ratio' || popup == 'timer') {
+        _showTopControls = false;
+      } else {
+        // Filter và More popup KHÔNG ẨN top controls
+        _showTopControls = true;
+      }
+    });
+  }
+
+  void _hideAllPopups() {
+    setState(() {
+      _showRatioPopup = false;
+      _showTimerPopup = false;
+      _showFilterPopup = false;
+      _showMorePopup = false;
+
+      // Hiện lại top controls khi đóng popup
+      _showTopControls = true;
+    });
+  }
 
   @override
   void initState() {
@@ -47,15 +89,6 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
     super.dispose();
   }
 
-  void _hideAllPopups() {
-    setState(() {
-      _showRatioPopup = false;
-      _showTimerPopup = false;
-      _showToolPopup = false;
-      _showMorePopup = false;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -70,10 +103,7 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
         backgroundColor: Colors.black,
         body: GestureDetector(
           onTap: () {
-            if (_showRatioPopup ||
-                _showTimerPopup ||
-                _showToolPopup ||
-                _showMorePopup) {
+            if (_hasActivePopup) {
               _hideAllPopups();
             }
           },
@@ -110,21 +140,18 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 bottomActionsBuilder: (state) => const SizedBox.shrink(),
               ),
 
-              // Top Controls
+              // Top Controls - CHỈ ẨN khi có ratio/timer popup
               TopControls(
-                showTopControls: _showTopControls,
+                showTopControls: _showTopControls && !_shouldHideTopControls,
                 selectedRatio: _selectedRatio,
                 isFlashOn: _isFlashOn,
                 showRatioPopup: _showRatioPopup,
                 showTimerPopup: _showTimerPopup,
-                showToolPopup: _showToolPopup,
+                showToolPopup: _showFilterPopup,
                 showMorePopup: _showMorePopup,
                 onBackPressed: () => Navigator.of(context).pop(),
                 onRatioPressed: () {
-                  setState(() {
-                    _hideAllPopups();
-                    _showRatioPopup = !_showRatioPopup;
-                  });
+                  _hideAllPopupsExcept('ratio');
                 },
                 onFlashPressed: () {
                   setState(() {
@@ -132,26 +159,17 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                   });
                 },
                 onTimerPressed: () {
-                  setState(() {
-                    _hideAllPopups();
-                    _showTimerPopup = !_showTimerPopup;
-                  });
+                  _hideAllPopupsExcept('timer');
                 },
                 onToolPressed: () {
-                  setState(() {
-                    _hideAllPopups();
-                    _showToolPopup = !_showToolPopup;
-                  });
+                  _hideAllPopupsExcept('filter');
                 },
                 onMorePressed: () {
-                  setState(() {
-                    _hideAllPopups();
-                    _showMorePopup = !_showMorePopup;
-                  });
+                  _hideAllPopupsExcept('more');
                 },
               ),
 
-              // Mid Controls
+              // Mid Controls - GIỮ NGUYÊN CỐ ĐỊNH
               MidControls(
                 showMidControls: _showMidControls,
                 currentZoom: _currentZoom,
@@ -169,22 +187,19 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 },
               ),
 
-              // Bottom Controls
+              // Bottom Controls - GIỮ NGUYÊN CỐ ĐỊNH
               BottomControls(
                 showBottomControls: _showBottomControls,
                 isLoading: _isLoading,
                 onGalleryPressed: () {
                   debugPrint('Gallery pressed');
-                  // Navigator.push(context, MaterialPageRoute(...));
                 },
                 onCapturePressed: () {
                   debugPrint('Capture pressed');
-                  // Trigger camera capture
                 },
                 onSwitchCameraPressed: () async {
                   setState(() => _isLoading = true);
 
-                  // Switch camera using CameraAwesome state
                   if (_cameraState != null) {
                     await _cameraState!.switchCameraSensor();
                   }
@@ -193,262 +208,79 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 },
               ),
 
-              // Popups
-              if (_showRatioPopup) _buildRatioPopup(),
-              if (_showTimerPopup) _buildTimerPopup(),
-              if (_showToolPopup) _buildToolPopup(),
-              if (_showMorePopup) _buildMorePopup(),
+              // Popups - Hiển thị lên trên cùng
+              if (_showRatioPopup)
+                RatioPopup(
+                  isVisible: _showRatioPopup,
+                  selectedRatio: _selectedRatio,
+                  onRatioSelected: (ratio) {
+                    setState(() {
+                      _selectedRatio = ratio;
+                      _hideAllPopups();
+                    });
+                  },
+                ),
+
+              if (_showTimerPopup)
+                TimerPopup(
+                  isVisible: _showTimerPopup,
+                  selectedTimer: _selectedTimer,
+                  onTimerSelected: (timer) {
+                    setState(() {
+                      _selectedTimer = timer;
+                      _hideAllPopups();
+                    });
+                  },
+                ),
+
+              if (_showFilterPopup)
+                FilterPopup(
+                  isVisible: _showFilterPopup,
+                  selectedCategory: _selectedFilterCategory,
+                  selectedFilterIndex: _selectedFilterIndex,
+                  onCategoryChanged: (category) {
+                    setState(() {
+                      _selectedFilterCategory = category;
+                    });
+                  },
+                  onFilterSelected: (index) {
+                    setState(() {
+                      _selectedFilterIndex = index;
+                      _hideAllPopups();
+                    });
+                  },
+                ),
+
+              if (_showMorePopup)
+                MorePopup(
+                  isVisible: _showMorePopup,
+                  onGridTap: () {
+                    setState(() {
+                      _hideAllPopups();
+                    });
+                  },
+                  onFocusTap: () {
+                    setState(() {
+                      _hideAllPopups();
+                    });
+                  },
+                  onExposureTap: () {
+                    setState(() {
+                      _hideAllPopups();
+                    });
+                  },
+                  onCollageTap: () {
+                    setState(() {
+                      _hideAllPopups();
+                    });
+                  },
+                  onClose: () {
+                    setState(() {
+                      _hideAllPopups();
+                    });
+                  },
+                ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Ratio Popup
-  Widget _buildRatioPopup() {
-    final ratios = ["16:9", "4:3", "1:1", "Full"];
-
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 60,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.85),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: ratios.map((ratio) {
-              final isSelected = ratio == _selectedRatio;
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedRatio = ratio;
-                    _showRatioPopup = false;
-                  });
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  color: isSelected
-                      ? Colors.white.withOpacity(0.15)
-                      : Colors.transparent,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        ratio,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                        ),
-                      ),
-                      if (isSelected)
-                        const Icon(Icons.check, color: Colors.white, size: 20),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Timer Popup
-  Widget _buildTimerPopup() {
-    final timers = ["OFF", "3s", "5s", "10s"];
-
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 60,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.85),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: timers.map((timer) {
-              final isSelected = timer == _selectedTimer;
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedTimer = timer;
-                    _showTimerPopup = false;
-                  });
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  color: isSelected
-                      ? Colors.white.withOpacity(0.15)
-                      : Colors.transparent,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        timer,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                        ),
-                      ),
-                      if (isSelected)
-                        const Icon(Icons.check, color: Colors.white, size: 20),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Tool Popup
-  Widget _buildToolPopup() {
-    final tools = [
-      {"icon": Icons.wb_sunny_outlined, "label": "Brightness"},
-      {"icon": Icons.contrast, "label": "Contrast"},
-      {"icon": Icons.wb_incandescent_outlined, "label": "White Balance"},
-      {"icon": Icons.grid_on, "label": "Grid"},
-    ];
-
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 60,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.85),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: tools.map((tool) {
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _showToolPopup = false;
-                  });
-                  debugPrint('Selected: ${tool["label"]}');
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        tool["icon"] as IconData,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 16),
-                      Text(
-                        tool["label"] as String,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // More Popup
-  Widget _buildMorePopup() {
-    final moreOptions = [
-      {"icon": Icons.filter_vintage, "label": "Filters"},
-      {"icon": Icons.photo_size_select_small, "label": "Collage"},
-      {"icon": Icons.settings, "label": "Settings"},
-      {"icon": Icons.help_outline, "label": "Help"},
-    ];
-
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 60,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.85),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: moreOptions.map((option) {
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _showMorePopup = false;
-                  });
-                  debugPrint('Selected: ${option["label"]}');
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        option["icon"] as IconData,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 16),
-                      Text(
-                        option["label"] as String,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
           ),
         ),
       ),
