@@ -35,26 +35,30 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
+    return WillPopScope(
+      onWillPop: () async {
+        // Trả về true để báo có thay đổi
+        Navigator.pop(context, true);
+        return false;
+      },
+      child: Scaffold(
         backgroundColor: Colors.black,
-        title: const Text(
-          'Gallery',
-          style: TextStyle(color: Colors.white),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => _viewModel.refreshPhotos(),
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          title: const Text('Gallery', style: TextStyle(color: Colors.white)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
           ),
-        ],
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              onPressed: () => _viewModel.refreshPhotos(),
+            ),
+          ],
+        ),
+        body: _buildBody(),
       ),
-      body: _buildBody(),
     );
   }
 
@@ -70,11 +74,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              color: Colors.red,
-              size: 64,
-            ),
+            const Icon(Icons.error_outline, color: Colors.red, size: 64),
             const SizedBox(height: 16),
             Text(
               _viewModel.error,
@@ -104,18 +104,12 @@ class _GalleryScreenState extends State<GalleryScreen> {
             const SizedBox(height: 16),
             Text(
               'No photos found',
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 18,
-              ),
+              style: TextStyle(color: Colors.grey[400], fontSize: 18),
             ),
             const SizedBox(height: 8),
             Text(
               'Take some photos with the camera',
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.grey[500], fontSize: 14),
             ),
           ],
         ),
@@ -163,8 +157,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
     );
   }
 
-  void _showImageDetail(PhotoInfo photo) {
-    Navigator.push(
+  void _showImageDetail(PhotoInfo photo) async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ImageDetailScreen(
@@ -173,6 +167,11 @@ class _GalleryScreenState extends State<GalleryScreen> {
         ),
       ),
     );
+
+    // Nếu có thay đổi (xóa ảnh), reload
+    if (result == true) {
+      await _viewModel.refreshPhotos();
+    }
   }
 }
 
@@ -181,7 +180,7 @@ class ImageDetailScreen extends StatelessWidget {
   final Future<bool> Function(PhotoInfo) onDelete;
 
   const ImageDetailScreen({
-    super.key, 
+    super.key,
     required this.photoInfo,
     required this.onDelete,
   });
@@ -199,6 +198,7 @@ class ImageDetailScreen extends StatelessWidget {
         title: Text(
           photoInfo.fileName,
           style: const TextStyle(color: Colors.white, fontSize: 16),
+          overflow: TextOverflow.ellipsis,
         ),
         actions: [
           IconButton(
@@ -206,7 +206,10 @@ class ImageDetailScreen extends StatelessWidget {
             onPressed: () {
               // Share functionality can be added here
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Share functionality coming soon')),
+                const SnackBar(
+                  content: Text('Share functionality coming soon'),
+                  backgroundColor: Colors.blue,
+                ),
               );
             },
           ),
@@ -239,10 +242,7 @@ class ImageDetailScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     Text(
                       'Cannot load image',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 16,
-                      ),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 16),
                     ),
                   ],
                 ),
@@ -251,48 +251,130 @@ class ImageDetailScreen extends StatelessWidget {
           ),
         ),
       ),
+      bottomNavigationBar: _buildBottomInfo(context),
     );
+  }
+
+  Widget _buildBottomInfo(BuildContext context) {
+    return Container(
+      color: Colors.black.withOpacity(0.8),
+      padding: const EdgeInsets.all(16),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today,
+                  color: Colors.white70,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _formatDate(photoInfo.createdAt),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.folder, color: Colors.white70, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    photoInfo.filePath,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   void _showDeleteDialog(BuildContext context, PhotoInfo photoInfo) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: Colors.grey[900],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text(
             'Delete Photo',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           content: const Text(
-            'Are you sure you want to delete this photo?',
+            'Are you sure you want to delete this photo? This action cannot be undone.',
             style: TextStyle(color: Colors.white70),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: Colors.grey[400]),
-              ),
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
             ),
             TextButton(
               onPressed: () async {
+                // Close dialog
+                Navigator.pop(dialogContext);
+
+                // Show loading
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (BuildContext loadingContext) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
+                  },
+                );
+
+                // Delete photo
                 final success = await onDelete(photoInfo);
+
+                // Close loading
                 if (context.mounted) {
-                  Navigator.pop(context); // Close dialog
-                  Navigator.pop(context); // Go back to gallery
+                  Navigator.pop(context);
+                }
+
+                // Go back to gallery với signal
+                if (context.mounted) {
+                  Navigator.pop(context, true);
+
+                  // Show result message
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(success ? 'Photo deleted' : 'Failed to delete photo'),
+                      content: Text(
+                        success
+                            ? '✓ Photo deleted successfully'
+                            : '✗ Failed to delete photo',
+                      ),
                       backgroundColor: success ? Colors.green : Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
                     ),
                   );
                 }
               },
               child: const Text(
                 'Delete',
-                style: TextStyle(color: Colors.red),
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],

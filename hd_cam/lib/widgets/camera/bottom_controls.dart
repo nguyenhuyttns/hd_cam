@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 class BottomControls extends StatelessWidget {
   final bool showBottomControls;
   final bool isLoading;
+  final bool isCapturing;
+  final String? lastPhotoPath;
   final VoidCallback onGalleryPressed;
   final VoidCallback onCapturePressed;
   final VoidCallback onSwitchCameraPressed;
@@ -11,6 +14,8 @@ class BottomControls extends StatelessWidget {
     super.key,
     required this.showBottomControls,
     required this.isLoading,
+    required this.isCapturing,
+    this.lastPhotoPath,
     required this.onGalleryPressed,
     required this.onCapturePressed,
     required this.onSwitchCameraPressed,
@@ -42,7 +47,7 @@ class BottomControls extends StatelessWidget {
                 // Bottom navigation (Gallery, Capture, Switch)
                 _buildBottomNavigation(),
 
-                const SizedBox(height: 16), // Tăng padding dưới
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -80,7 +85,7 @@ class BottomControls extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Gallery button
+          // Gallery button with last photo thumbnail
           GestureDetector(
             onTap: onGalleryPressed,
             child: Container(
@@ -89,31 +94,65 @@ class BottomControls extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.grey.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 2,
+                ),
               ),
-              child: const Icon(
-                Icons.photo_library_outlined,
-                color: Colors.white,
-                size: 28,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child:
+                    lastPhotoPath != null && File(lastPhotoPath!).existsSync()
+                    ? Image.file(
+                        File(lastPhotoPath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(
+                            Icons.photo_library_outlined,
+                            color: Colors.white,
+                            size: 28,
+                          );
+                        },
+                      )
+                    : const Icon(
+                        Icons.photo_library_outlined,
+                        color: Colors.white,
+                        size: 28,
+                      ),
               ),
             ),
           ),
 
           // Capture button
           GestureDetector(
-            onTap: onCapturePressed,
+            onTap: isCapturing ? null : onCapturePressed,
             child: Container(
               width: 75,
               height: 75,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 5),
+                border: Border.all(
+                  color: isCapturing ? Colors.grey : Colors.white,
+                  width: 5,
+                ),
               ),
               child: Container(
                 margin: const EdgeInsets.all(5),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(
+                  color: isCapturing ? Colors.grey : Colors.white,
                   shape: BoxShape.circle,
                 ),
+                child: isCapturing
+                    ? const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.black,
+                          ),
+                        ),
+                      )
+                    : null,
               ),
             ),
           ),

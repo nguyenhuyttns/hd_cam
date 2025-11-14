@@ -32,7 +32,7 @@ class BasePopup extends StatelessWidget {
           margin: margin,
           padding: padding,
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: backgroundAlpha),
+            color: Colors.black.withOpacity(backgroundAlpha),
             borderRadius: BorderRadius.circular(borderRadius),
           ),
           child: child,

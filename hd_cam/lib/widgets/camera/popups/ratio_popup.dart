@@ -21,7 +21,7 @@ class RatioPopup extends StatelessWidget {
       child: Visibility(
         visible: isVisible,
         child: Container(
-          color: Colors.black.withValues(alpha: 0.7),
+          color: Colors.black.withOpacity(0.7),
           child: SafeArea(
             bottom: false,
             child: Padding(
@@ -39,7 +39,7 @@ class RatioPopup extends StatelessWidget {
                         style: TextStyle(
                           color: isSelected
                               ? Colors.white
-                              : Colors.white.withValues(alpha: 0.5),
+                              : Colors.white.withOpacity(0.5),
                           fontSize: 14,
                           fontWeight: isSelected
                               ? FontWeight.w700

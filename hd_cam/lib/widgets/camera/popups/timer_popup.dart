@@ -21,7 +21,7 @@ class TimerPopup extends StatelessWidget {
       child: Visibility(
         visible: isVisible,
         child: Container(
-          color: Colors.black.withValues(alpha: 0.85),
+          color: Colors.black.withOpacity(0.85),
           child: SafeArea(
             bottom: false,
             child: Padding(
@@ -41,7 +41,7 @@ class TimerPopup extends StatelessWidget {
                         color: isSelected ? Colors.white : Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.5),
+                          color: Colors.white.withOpacity(0.5),
                           width: 1,
                         ),
                       ),

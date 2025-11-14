@@ -33,7 +33,7 @@ class ZoomPopup extends StatelessWidget {
               min: minZoom,
               max: maxZoom,
               activeColor: Colors.white,
-              inactiveColor: Colors.white.withValues(alpha: 0.3),
+              inactiveColor: Colors.white.withOpacity(0.3),
               onChanged: onChanged,
             ),
           ),

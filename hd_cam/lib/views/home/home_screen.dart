@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../camera/camera_screen.dart';
 import '../gallery/gallery_screen.dart';
+import '../../services/photo_storage_service.dart';
+import 'dart:io';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,6 +13,37 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  List<PhotoInfo> _recentPhotos = [];
+  bool _isLoadingPhotos = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecentPhotos();
+  }
+
+  Future<void> _loadRecentPhotos() async {
+    setState(() {
+      _isLoadingPhotos = true;
+    });
+
+    try {
+      final photos = await PhotoStorageService.getAllPhotos();
+      if (mounted) {
+        setState(() {
+          _recentPhotos = photos.take(6).toList(); // Lấy 6 ảnh gần nhất
+          _isLoadingPhotos = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading photos: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingPhotos = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,13 +139,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 21),
                 GestureDetector(
                   onTap: () async {
-                    await Navigator.push(
+                    final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const V169CameraScreen(),
                       ),
                     );
-                    // Photo refresh will be handled by CameraAwesome
+
+                    // Reload photos nếu có ảnh mới
+                    if (result == true) {
+                      await _loadRecentPhotos();
+                    }
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -120,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
@@ -257,11 +294,15 @@ class _HomeScreenState extends State<HomeScreen> {
           const Spacer(),
           GestureDetector(
             onTap: () async {
-              await Navigator.push(
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const GalleryScreen()),
               );
-              // Gallery navigation completed
+
+              // Reload nếu có thay đổi
+              if (result == true) {
+                await _loadRecentPhotos();
+              }
             },
             child: Container(
               padding: const EdgeInsets.all(5),
@@ -294,7 +335,24 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildRecentPhotos() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22),
-      child: _buildEmptyGallery(),
+      child: _isLoadingPhotos
+          ? _buildLoadingGallery()
+          : _recentPhotos.isEmpty
+          ? _buildEmptyGallery()
+          : _buildPhotoGrid(),
+    );
+  }
+
+  Widget _buildLoadingGallery() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Center(
+        child: CircularProgressIndicator(color: Color(0xFF183FBF)),
+      ),
     );
   }
 
@@ -317,13 +375,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 17),
           GestureDetector(
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const V169CameraScreen(),
                 ),
               );
+
+              if (result == true) {
+                await _loadRecentPhotos();
+              }
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -343,6 +405,55 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoGrid() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 1,
+        ),
+        itemCount: _recentPhotos.length,
+        itemBuilder: (context, index) {
+          final photo = _recentPhotos[index];
+          return GestureDetector(
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const GalleryScreen()),
+              );
+
+              if (result == true) {
+                await _loadRecentPhotos();
+              }
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                photo.file,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey[300],
+                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                  );
+                },
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -388,13 +499,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
               GestureDetector(
-                onTap: () {
-                  Navigator.push(
+                onTap: () async {
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const V169CameraScreen(),
                     ),
                   );
+
+                  if (result == true) {
+                    await _loadRecentPhotos();
+                  }
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),

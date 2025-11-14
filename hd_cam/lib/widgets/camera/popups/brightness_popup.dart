@@ -29,7 +29,7 @@ class BrightnessPopup extends StatelessWidget {
               min: 0.0,
               max: 1.0,
               activeColor: Colors.white,
-              inactiveColor: Colors.white.withValues(alpha: 0.3),
+              inactiveColor: Colors.white.withOpacity(0.3),
               onChanged: onChanged,
             ),
           ),

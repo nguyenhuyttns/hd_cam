@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:camerawesome/camerawesome_plugin.dart';
@@ -8,6 +9,17 @@ import '../../widgets/camera/popups/ratio_popup.dart';
 import '../../widgets/camera/popups/timer_popup.dart';
 import '../../widgets/camera/popups/filter_popup.dart';
 import '../../widgets/camera/popups/more_popup.dart';
+import '../../widgets/camera/popups/amp_popup.dart';
+import '../../widgets/camera/popups/wb_popup.dart';
+import '../../widgets/camera/popups/zoom_popup.dart';
+import '../../widgets/camera/popups/brightness_popup.dart';
+import '../../view_models/camera_view_model.dart';
+import '../../widgets/camera/popups/grid_popup.dart';
+import '../../widgets/camera/popups/focus_popup.dart';
+import '../../widgets/camera/popups/exposure_popup.dart';
+import '../../widgets/camera/popups/collage_popup.dart';
+import '../gallery/gallery_screen.dart';
+import '../../services/photo_storage_service.dart';
 
 class V169CameraScreen extends StatefulWidget {
   const V169CameraScreen({super.key});
@@ -17,60 +29,23 @@ class V169CameraScreen extends StatefulWidget {
 }
 
 class _V169CameraScreenState extends State<V169CameraScreen> {
-  // UI State
-  bool _showTopControls = true;
-  bool _showMidControls = true;
-  bool _showBottomControls = true;
-  bool _showRatioPopup = false;
-  bool _showTimerPopup = false;
-  bool _showFilterPopup = false;
-  bool _showMorePopup = false;
-
-  // Settings
-  String _selectedRatio = "16:9";
-  bool _isFlashOn = false;
-  String _selectedTimer = "OFF";
-  String _selectedFilterCategory = 'Popular';
-  int _selectedFilterIndex = 0;
-  double _currentZoom = 1.0;
-  bool _isLoading = false;
+  final CameraViewModel _vm = CameraViewModel();
 
   // Camera state
   CameraState? _cameraState;
 
-  // Check if any popup is visible
-  bool get _hasActivePopup =>
-      _showRatioPopup || _showTimerPopup || _showFilterPopup || _showMorePopup;
-
-  // Check if popup that hides top controls is active (ONLY ratio/timer)
-  bool get _shouldHideTopControls => _showRatioPopup || _showTimerPopup;
+  bool get _hasActivePopup => _vm.hasActivePopup;
+  bool get _shouldHideTopControls => _vm.shouldHideTopControls;
 
   void _hideAllPopupsExcept(String popup) {
     setState(() {
-      _showRatioPopup = popup == 'ratio';
-      _showTimerPopup = popup == 'timer';
-      _showFilterPopup = popup == 'filter';
-      _showMorePopup = popup == 'more';
-
-      // CHỈ ẨN top controls khi mở ratio/timer popup
-      if (popup == 'ratio' || popup == 'timer') {
-        _showTopControls = false;
-      } else {
-        // Filter và More popup KHÔNG ẨN top controls
-        _showTopControls = true;
-      }
+      _vm.hideAllPopupsExcept(popup);
     });
   }
 
   void _hideAllPopups() {
     setState(() {
-      _showRatioPopup = false;
-      _showTimerPopup = false;
-      _showFilterPopup = false;
-      _showMorePopup = false;
-
-      // Hiện lại top controls khi đóng popup
-      _showTopControls = true;
+      _vm.hideAllPopups();
     });
   }
 
@@ -78,6 +53,21 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    _loadLastPhoto();
+  }
+
+  // Load ảnh cuối cùng từ gallery
+  Future<void> _loadLastPhoto() async {
+    try {
+      final photos = await PhotoStorageService.getAllPhotos();
+      if (photos.isNotEmpty && mounted) {
+        setState(() {
+          _vm.updateLastCapturedPhoto(photos.first.filePath);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading last photo: $e');
+    }
   }
 
   @override
@@ -89,6 +79,116 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
     super.dispose();
   }
 
+  // Hàm chụp ảnh đơn giản
+  Future<void> _capturePhoto() async {
+    if (_cameraState == null || _vm.isCapturing) return;
+
+    setState(() {
+      _vm.setCapturing(true);
+    });
+
+    try {
+      debugPrint('=== Starting Photo Capture ===');
+      
+      // Chụp ảnh bằng camerawesome
+      await _cameraState!.when(
+        onPhotoMode: (photoState) async {
+          final captureRequest = await photoState.takePhoto();
+          debugPrint('Photo captured: ${captureRequest.runtimeType}');
+          
+          // Xử lý ảnh vừa chụp
+          await _handleCapturedPhoto(captureRequest);
+        },
+      );
+    } catch (e) {
+      debugPrint('Error capturing photo: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Failed to capture photo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _vm.setCapturing(false);
+        });
+      }
+    }
+  }
+
+  // Xử lý ảnh vừa chụp
+  Future<void> _handleCapturedPhoto(dynamic captureRequest) async {
+    try {
+      File? imageFile;
+      
+      // Lấy file ảnh từ capture request
+      if (captureRequest is SingleCaptureRequest) {
+        final xFile = captureRequest.file;
+        if (xFile != null) {
+          imageFile = File(xFile.path);
+          debugPrint('Image file path: ${imageFile.path}');
+        }
+      }
+
+      if (imageFile != null && await imageFile.exists()) {
+        debugPrint('Image file exists, saving to SharedPreferences...');
+        
+        // Lưu ảnh vào SharedPreferences
+        final savedFileName = await PhotoStorageService.savePhoto(imageFile);
+        
+        if (savedFileName != null) {
+          debugPrint('✅ Photo saved successfully: $savedFileName');
+          
+          // Cập nhật UI với ảnh mới
+          await _loadLastPhoto();
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('📸 Photo saved successfully!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } else {
+          debugPrint('❌ Failed to save photo');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('❌ Failed to save photo'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } else {
+        debugPrint('❌ Image file not found or does not exist');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Failed to capture photo'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error handling captured photo: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -97,7 +197,9 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
           SystemUiMode.manual,
           overlays: SystemUiOverlay.values,
         );
-        return true;
+        // Trả về true để báo có ảnh mới
+        Navigator.pop(context, true);
+        return false;
       },
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -116,21 +218,13 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 ),
                 sensorConfig: SensorConfig.single(
                   sensor: Sensor.position(SensorPosition.back),
-                  flashMode: _isFlashOn ? FlashMode.on : FlashMode.none,
+                  flashMode: _vm.isFlashOn ? FlashMode.on : FlashMode.none,
                 ),
                 previewFit: CameraPreviewFit.cover,
                 enablePhysicalButton: true,
-                onMediaTap: (mediaCapture) {
-                  debugPrint('=== Photo Captured ===');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('📸 Photo saved successfully!'),
-                        backgroundColor: Colors.green,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  }
+                onMediaTap: (mediaCapture) async {
+                  // Không cần xử lý gì ở đây nữa vì đã xử lý trong _capturePhoto()
+                  debugPrint('onMediaTap called - handled in _capturePhoto()');
                 },
                 topActionsBuilder: (state) {
                   _cameraState = state;
@@ -140,22 +234,24 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 bottomActionsBuilder: (state) => const SizedBox.shrink(),
               ),
 
-              // Top Controls - CHỈ ẨN khi có ratio/timer popup
+              // Top Controls
               TopControls(
-                showTopControls: _showTopControls && !_shouldHideTopControls,
-                selectedRatio: _selectedRatio,
-                isFlashOn: _isFlashOn,
-                showRatioPopup: _showRatioPopup,
-                showTimerPopup: _showTimerPopup,
-                showToolPopup: _showFilterPopup,
-                showMorePopup: _showMorePopup,
-                onBackPressed: () => Navigator.of(context).pop(),
+                showTopControls: _vm.showTopControls && !_shouldHideTopControls,
+                selectedRatio: _vm.selectedRatio,
+                isFlashOn: _vm.isFlashOn,
+                showRatioPopup: _vm.showRatioPopup,
+                showTimerPopup: _vm.showTimerPopup,
+                showToolPopup: _vm.showFilterPopup,
+                showMorePopup: _vm.showMorePopup,
+                onBackPressed: () {
+                  Navigator.of(context).pop(true);
+                },
                 onRatioPressed: () {
                   _hideAllPopupsExcept('ratio');
                 },
                 onFlashPressed: () {
                   setState(() {
-                    _isFlashOn = !_isFlashOn;
+                    _vm.toggleFlash();
                   });
                 },
                 onTimerPressed: () {
@@ -169,109 +265,250 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 },
               ),
 
-              // Mid Controls - GIỮ NGUYÊN CỐ ĐỊNH
+              // Mid Controls
               MidControls(
-                showMidControls: _showMidControls,
-                currentZoom: _currentZoom,
+                showMidControls: _vm.showMidControls,
+                currentZoom: _vm.currentZoom,
                 onAmpPressed: () {
-                  debugPrint('AMP pressed');
+                  setState(() {
+                    if (_vm.showAmpPopup) {
+                      _hideAllPopups();
+                    } else {
+                      _hideAllPopupsExcept('amp');
+                    }
+                  });
                 },
                 onWBPressed: () {
-                  debugPrint('WB pressed');
+                  setState(() {
+                    if (_vm.showWbPopup) {
+                      _hideAllPopups();
+                    } else {
+                      _hideAllPopupsExcept('wb');
+                    }
+                  });
                 },
                 onZoomPressed: () {
-                  debugPrint('Zoom pressed');
+                  setState(() {
+                    if (_vm.showZoomPopup) {
+                      _hideAllPopups();
+                    } else {
+                      _hideAllPopupsExcept('zoom');
+                    }
+                  });
                 },
                 onBrightnessPressed: () {
-                  debugPrint('Brightness pressed');
+                  setState(() {
+                    if (_vm.showBrightnessPopup) {
+                      _hideAllPopups();
+                    } else {
+                      _hideAllPopupsExcept('brightness');
+                    }
+                  });
                 },
               ),
 
-              // Bottom Controls - GIỮ NGUYÊN CỐ ĐỊNH
+              // Bottom Controls
               BottomControls(
-                showBottomControls: _showBottomControls,
-                isLoading: _isLoading,
-                onGalleryPressed: () {
-                  debugPrint('Gallery pressed');
+                showBottomControls: _vm.showBottomControls,
+                isLoading: _vm.isLoading,
+                isCapturing: _vm.isCapturing,
+                lastPhotoPath: _vm.lastCapturedPhotoPath,
+                onGalleryPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const GalleryScreen(),
+                    ),
+                  );
+
+                  // Reload ảnh cuối sau khi quay về từ gallery
+                  if (result == true) {
+                    await _loadLastPhoto();
+                  }
                 },
-                onCapturePressed: () {
-                  debugPrint('Capture pressed');
-                },
+                onCapturePressed: _capturePhoto,
                 onSwitchCameraPressed: () async {
-                  setState(() => _isLoading = true);
+                  setState(() => _vm.isLoading = true);
 
                   if (_cameraState != null) {
                     await _cameraState!.switchCameraSensor();
                   }
 
-                  setState(() => _isLoading = false);
+                  setState(() => _vm.isLoading = false);
                 },
               ),
 
-              // Popups - Hiển thị lên trên cùng
-              if (_showRatioPopup)
+              // Popups
+              if (_vm.showRatioPopup)
                 RatioPopup(
-                  isVisible: _showRatioPopup,
-                  selectedRatio: _selectedRatio,
+                  isVisible: _vm.showRatioPopup,
+                  selectedRatio: _vm.selectedRatio,
                   onRatioSelected: (ratio) {
                     setState(() {
-                      _selectedRatio = ratio;
-                      _hideAllPopups();
+                      _vm.selectRatio(ratio);
                     });
                   },
                 ),
 
-              if (_showTimerPopup)
+              if (_vm.showTimerPopup)
                 TimerPopup(
-                  isVisible: _showTimerPopup,
-                  selectedTimer: _selectedTimer,
+                  isVisible: _vm.showTimerPopup,
+                  selectedTimer: _vm.selectedTimer,
                   onTimerSelected: (timer) {
                     setState(() {
-                      _selectedTimer = timer;
-                      _hideAllPopups();
+                      _vm.selectTimer(timer);
                     });
                   },
                 ),
 
-              if (_showFilterPopup)
+              if (_vm.showFilterPopup)
                 FilterPopup(
-                  isVisible: _showFilterPopup,
-                  selectedCategory: _selectedFilterCategory,
-                  selectedFilterIndex: _selectedFilterIndex,
+                  isVisible: _vm.showFilterPopup,
+                  selectedCategory: _vm.selectedFilterCategory,
+                  selectedFilterIndex: _vm.selectedFilterIndex,
                   onCategoryChanged: (category) {
                     setState(() {
-                      _selectedFilterCategory = category;
+                      _vm.changeFilterCategory(category);
                     });
                   },
                   onFilterSelected: (index) {
                     setState(() {
-                      _selectedFilterIndex = index;
+                      _vm.selectFilter(index);
+                    });
+                  },
+                ),
+
+              if (_vm.showAmpPopup)
+                AmpPopup(
+                  isVisible: _vm.showAmpPopup,
+                  ampValue: _vm.ampValue,
+                  onChanged: (v) {
+                    setState(() {
+                      _vm.setAmp(v);
+                    });
+                  },
+                ),
+
+              if (_vm.showWbPopup)
+                WbPopup(
+                  isVisible: _vm.showWbPopup,
+                  currentMode: _vm.wbMode,
+                  onModeChanged: (mode) {
+                    setState(() {
+                      _vm.selectWbMode(mode);
+                    });
+                  },
+                ),
+
+              if (_vm.showZoomPopup)
+                ZoomPopup(
+                  isVisible: _vm.showZoomPopup,
+                  currentZoom: _vm.currentZoom,
+                  minZoom: _vm.minZoom,
+                  maxZoom: _vm.maxZoom,
+                  onChanged: (z) {
+                    setState(() {
+                      _vm.setZoom(z);
+                    });
+                  },
+                ),
+
+              if (_vm.showBrightnessPopup)
+                BrightnessPopup(
+                  isVisible: _vm.showBrightnessPopup,
+                  brightnessValue: _vm.brightnessValue,
+                  onChanged: (b) {
+                    setState(() {
+                      _vm.setBrightness(b);
+                    });
+                  },
+                ),
+
+              if (_vm.showMorePopup)
+                MorePopup(
+                  isVisible: _vm.showMorePopup,
+                  onGridTap: () {
+                    setState(() {
+                      _hideAllPopupsExcept('grid');
+                    });
+                  },
+                  onFocusTap: () {
+                    setState(() {
+                      _hideAllPopupsExcept('focus');
+                    });
+                  },
+                  onExposureTap: () {
+                    setState(() {
+                      _hideAllPopupsExcept('exposure');
+                    });
+                  },
+                  onCollageTap: () {
+                    setState(() {
+                      _hideAllPopupsExcept('collage');
+                    });
+                  },
+                  onClose: () {
+                    setState(() {
                       _hideAllPopups();
                     });
                   },
                 ),
 
-              if (_showMorePopup)
-                MorePopup(
-                  isVisible: _showMorePopup,
-                  onGridTap: () {
+              if (_vm.showGridPopup)
+                GridPopup(
+                  isVisible: _vm.showGridPopup,
+                  selectedGrid: _vm.selectedGrid,
+                  onGridSelected: (grid) {
+                    setState(() {
+                      _vm.selectGrid(grid);
+                    });
+                  },
+                  onClose: () {
                     setState(() {
                       _hideAllPopups();
                     });
                   },
-                  onFocusTap: () {
+                ),
+
+              if (_vm.showFocusPopup)
+                FocusPopup(
+                  isVisible: _vm.showFocusPopup,
+                  selectedFocus: _vm.selectedFocus,
+                  onFocusSelected: (focus) {
+                    setState(() {
+                      _vm.selectFocus(focus);
+                    });
+                  },
+                  onClose: () {
                     setState(() {
                       _hideAllPopups();
                     });
                   },
-                  onExposureTap: () {
+                ),
+
+              if (_vm.showExposurePopup)
+                ExposurePopup(
+                  isVisible: _vm.showExposurePopup,
+                  exposureValue: _vm.exposureValue,
+                  onChanged: (v) {
+                    setState(() {
+                      _vm.setExposure(v);
+                    });
+                  },
+                  onClose: () {
                     setState(() {
                       _hideAllPopups();
                     });
                   },
-                  onCollageTap: () {
+                ),
+
+              if (_vm.showCollagePopup)
+                CollagePopup(
+                  isVisible: _vm.showCollagePopup,
+                  selectedLayout: _vm.selectedCollageLayout,
+                  onLayoutSelected: (layout) {
                     setState(() {
-                      _hideAllPopups();
+                      _vm.selectCollageLayout(layout);
                     });
                   },
                   onClose: () {

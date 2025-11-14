@@ -36,7 +36,7 @@ class FocusPopup extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: popupAlpha),
+            color: Colors.black.withOpacity(popupAlpha),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -80,7 +80,7 @@ class FocusPopup extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Colors.blue
-                            : Colors.black.withValues(alpha: itemAlpha),
+                            : Colors.black.withOpacity(itemAlpha),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Center(
