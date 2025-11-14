@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../camera/camera_screen.dart';
 import '../gallery/gallery_screen.dart';
-import '../../view_models/home_view_model.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,40 +10,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  late final HomeViewModel _viewModel;
-
-  @override
-  void initState() {
-    super.initState();
-    _viewModel = HomeViewModel();
-    _viewModel.addListener(_onViewModelChanged);
-    _viewModel.initialize();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _viewModel.removeListener(_onViewModelChanged);
-    _viewModel.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    // Refresh photos when app comes back to foreground
-    if (state == AppLifecycleState.resumed) {
-      _viewModel.refreshPhotos();
-    }
-  }
-
-  void _onViewModelChanged() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
+class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
@@ -146,8 +112,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         builder: (context) => const V169CameraScreen(),
                       ),
                     );
-                    // Refresh photos when returning from camera
-                    _viewModel.refreshPhotos();
+                    // Photo refresh will be handled by CameraAwesome
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -296,8 +261,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 context,
                 MaterialPageRoute(builder: (context) => const GalleryScreen()),
               );
-              // Refresh photos when returning from gallery
-              _viewModel.refreshPhotos();
+              // Gallery navigation completed
             },
             child: Container(
               padding: const EdgeInsets.all(5),
@@ -330,62 +294,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildRecentPhotos() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 22),
-      child: _viewModel.isLoading
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(40),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          : _viewModel.recentPhotos.isEmpty
-          ? _buildEmptyGallery()
-          : SizedBox(
-              height: 96,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _viewModel.recentPhotos.length,
-                itemBuilder: (context, index) {
-                  final photo = _viewModel.recentPhotos[index];
-                  return Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const GalleryScreen(),
-                          ),
-                        );
-                        // Refresh photos when returning from gallery
-                        _viewModel.refreshPhotos();
-                      },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: 96,
-                          height: 96,
-                          color: Colors.grey[300],
-                          child: Image.file(
-                            photo.file,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.broken_image,
-                                  color: Colors.grey,
-                                  size: 40,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+      child: _buildEmptyGallery(),
     );
   }
 
@@ -421,9 +330,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(100),
-                border: Border.all(
-                  color: const Color(0xFF183FBF),
-                ),
+                border: Border.all(color: const Color(0xFF183FBF)),
               ),
               child: const Text(
                 'Go to Camera',
