@@ -1,7 +1,8 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:camerawesome/camerawesome_plugin.dart';
+import 'package:camera/camera.dart';
 import '../../widgets/camera/top_controls.dart';
 import '../../widgets/camera/mid_controls.dart';
 import '../../widgets/camera/bottom_controls.dart';
@@ -28,11 +29,16 @@ class V169CameraScreen extends StatefulWidget {
   State<V169CameraScreen> createState() => _V169CameraScreenState();
 }
 
-class _V169CameraScreenState extends State<V169CameraScreen> {
+class _V169CameraScreenState extends State<V169CameraScreen>
+    with WidgetsBindingObserver {
   final CameraViewModel _vm = CameraViewModel();
 
-  // Camera state
-  CameraState? _cameraState;
+  CameraController? _controller;
+  List<CameraDescription> _cameras = [];
+  int _currentCameraIndex = 0;
+
+  Timer? _recordingTimer;
+  int _recordingSeconds = 0;
 
   bool get _hasActivePopup => _vm.hasActivePopup;
   bool get _shouldHideTopControls => _vm.shouldHideTopControls;
@@ -52,11 +58,49 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    _initializeCamera();
     _loadLastPhoto();
   }
 
-  // Load ảnh cuối cùng từ gallery
+  Future<void> _initializeCamera() async {
+    try {
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        debugPrint('❌ No cameras available');
+        return;
+      }
+
+      await _setupCamera(_currentCameraIndex);
+    } catch (e) {
+      debugPrint('Error initializing camera: $e');
+    }
+  }
+
+  Future<void> _setupCamera(int cameraIndex) async {
+    if (_controller != null) {
+      await _controller!.dispose();
+    }
+
+    final camera = _cameras[cameraIndex];
+    _controller = CameraController(
+      camera,
+      ResolutionPreset.high,
+      enableAudio: true,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+
+    try {
+      await _controller!.initialize();
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error setting up camera: $e');
+    }
+  }
+
   Future<void> _loadLastPhoto() async {
     try {
       final photos = await PhotoStorageService.getAllPhotos();
@@ -72,6 +116,9 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.dispose();
+    _recordingTimer?.cancel();
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.manual,
       overlays: SystemUiOverlay.values,
@@ -79,29 +126,55 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
     super.dispose();
   }
 
-  // Hàm chụp ảnh đơn giản
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      _controller?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _setupCamera(_currentCameraIndex);
+    }
+  }
+
+  // CHỤP ẢNH - ĐƠN GIẢN
   Future<void> _capturePhoto() async {
-    if (_cameraState == null || _vm.isCapturing) return;
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _vm.isCapturing ||
+        _vm.isRecording) {
+      return;
+    }
 
     setState(() {
       _vm.setCapturing(true);
     });
 
     try {
-      debugPrint('=== Starting Photo Capture ===');
-      
-      // Chụp ảnh bằng camerawesome
-      await _cameraState!.when(
-        onPhotoMode: (photoState) async {
-          final captureRequest = await photoState.takePhoto();
-          debugPrint('Photo captured: ${captureRequest.runtimeType}');
-          
-          // Xử lý ảnh vừa chụp
-          await _handleCapturedPhoto(captureRequest);
-        },
-      );
+      debugPrint('📷 Taking photo...');
+      final XFile image = await _controller!.takePicture();
+      debugPrint('📷 Photo captured: ${image.path}');
+
+      // Lưu ảnh
+      final imageFile = File(image.path);
+      final savedFileName = await PhotoStorageService.savePhoto(imageFile);
+
+      if (savedFileName != null && mounted) {
+        debugPrint('✅ Photo saved: $savedFileName');
+        await _loadLastPhoto();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📸 Photo saved successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
-      debugPrint('Error capturing photo: $e');
+      debugPrint('❌ Error capturing photo: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -119,74 +192,126 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
     }
   }
 
-  // Xử lý ảnh vừa chụp
-  Future<void> _handleCapturedPhoto(dynamic captureRequest) async {
-    try {
-      File? imageFile;
-      
-      // Lấy file ảnh từ capture request
-      if (captureRequest is SingleCaptureRequest) {
-        final xFile = captureRequest.file;
-        if (xFile != null) {
-          imageFile = File(xFile.path);
-          debugPrint('Image file path: ${imageFile.path}');
-        }
-      }
+  // BẮT ĐẦU QUAY VIDEO - ĐƠN GIẢN
+  Future<void> _startVideoRecording() async {
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _vm.isRecording ||
+        _vm.isCapturing) {
+      return;
+    }
 
-      if (imageFile != null && await imageFile.exists()) {
-        debugPrint('Image file exists, saving to SharedPreferences...');
-        
-        // Lưu ảnh vào SharedPreferences
-        final savedFileName = await PhotoStorageService.savePhoto(imageFile);
-        
-        if (savedFileName != null) {
-          debugPrint('✅ Photo saved successfully: $savedFileName');
-          
-          // Cập nhật UI với ảnh mới
-          await _loadLastPhoto();
-          
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('📸 Photo saved successfully!'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        } else {
-          debugPrint('❌ Failed to save photo');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('❌ Failed to save photo'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        }
-      } else {
-        debugPrint('❌ Image file not found or does not exist');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('❌ Failed to capture photo'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+    try {
+      debugPrint('🔴 Starting video recording...');
+      await _controller!.startVideoRecording();
+      debugPrint('🔴 Recording started');
+
+      if (mounted) {
+        setState(() {
+          _vm.setRecording(true);
+        });
+        _startRecordingTimer();
       }
     } catch (e) {
-      debugPrint('Error handling captured photo: $e');
+      debugPrint('❌ Error starting video recording: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Error: $e'),
+            content: Text('❌ Failed to start recording: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
     }
+  }
+
+  // DỪNG QUAY VIDEO - ĐƠN GIẢN
+  Future<void> _stopVideoRecording() async {
+    if (_controller == null ||
+        !_controller!.value.isRecordingVideo ||
+        !_vm.isRecording) {
+      return;
+    }
+
+    try {
+      debugPrint('⏹️ Stopping video recording...');
+      final XFile video = await _controller!.stopVideoRecording();
+      debugPrint('⏹️ Video saved: ${video.path}');
+
+      // Lưu video
+      final videoFile = File(video.path);
+      final savedFileName = await PhotoStorageService.saveVideo(videoFile);
+
+      if (savedFileName != null && mounted) {
+        debugPrint('✅ Video saved: $savedFileName');
+        await _loadLastPhoto();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎥 Video saved successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error stopping video recording: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Failed to stop recording: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _vm.setRecording(false);
+        });
+        _stopRecordingTimer();
+      }
+    }
+  }
+
+  void _startRecordingTimer() {
+    _recordingTimer?.cancel();
+    _recordingSeconds = 0;
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _recordingSeconds++;
+      });
+    });
+  }
+
+  void _stopRecordingTimer() {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    _recordingSeconds = 0;
+  }
+
+  Future<void> _onCapturePressed() async {
+    if (_vm.isVideoMode) {
+      if (_vm.isRecording) {
+        await _stopVideoRecording();
+      } else {
+        await _startVideoRecording();
+      }
+    } else {
+      await _capturePhoto();
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameras.length < 2) return;
+
+    setState(() => _vm.isLoading = true);
+
+    _currentCameraIndex = (_currentCameraIndex + 1) % _cameras.length;
+    await _setupCamera(_currentCameraIndex);
+
+    setState(() => _vm.isLoading = false);
   }
 
   @override
@@ -197,7 +322,6 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
           SystemUiMode.manual,
           overlays: SystemUiOverlay.values,
         );
-        // Trả về true để báo có ảnh mới
         Navigator.pop(context, true);
         return false;
       },
@@ -212,27 +336,12 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
           child: Stack(
             children: [
               // Camera Preview
-              CameraAwesomeBuilder.awesome(
-                saveConfig: SaveConfig.photoAndVideo(
-                  initialCaptureMode: CaptureMode.photo,
+              if (_controller != null && _controller!.value.isInitialized)
+                Positioned.fill(child: CameraPreview(_controller!))
+              else
+                const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
                 ),
-                sensorConfig: SensorConfig.single(
-                  sensor: Sensor.position(SensorPosition.back),
-                  flashMode: _vm.isFlashOn ? FlashMode.on : FlashMode.none,
-                ),
-                previewFit: CameraPreviewFit.cover,
-                enablePhysicalButton: true,
-                onMediaTap: (mediaCapture) async {
-                  // Không cần xử lý gì ở đây nữa vì đã xử lý trong _capturePhoto()
-                  debugPrint('onMediaTap called - handled in _capturePhoto()');
-                },
-                topActionsBuilder: (state) {
-                  _cameraState = state;
-                  return const SizedBox.shrink();
-                },
-                middleContentBuilder: (state) => const SizedBox.shrink(),
-                bottomActionsBuilder: (state) => const SizedBox.shrink(),
-              ),
 
               // Top Controls
               TopControls(
@@ -249,10 +358,16 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 onRatioPressed: () {
                   _hideAllPopupsExcept('ratio');
                 },
-                onFlashPressed: () {
-                  setState(() {
-                    _vm.toggleFlash();
-                  });
+                onFlashPressed: () async {
+                  if (_controller != null && _controller!.value.isInitialized) {
+                    final newFlashMode = _vm.isFlashOn
+                        ? FlashMode.off
+                        : FlashMode.torch;
+                    await _controller!.setFlashMode(newFlashMode);
+                    setState(() {
+                      _vm.toggleFlash();
+                    });
+                  }
                 },
                 onTimerPressed: () {
                   _hideAllPopupsExcept('timer');
@@ -312,6 +427,9 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 showBottomControls: _vm.showBottomControls,
                 isLoading: _vm.isLoading,
                 isCapturing: _vm.isCapturing,
+                isVideoMode: _vm.isVideoMode,
+                isRecording: _vm.isRecording,
+                recordingSeconds: _recordingSeconds,
                 lastPhotoPath: _vm.lastCapturedPhotoPath,
                 onGalleryPressed: () async {
                   final result = await Navigator.push(
@@ -321,24 +439,29 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                     ),
                   );
 
-                  // Reload ảnh cuối sau khi quay về từ gallery
                   if (result == true) {
                     await _loadLastPhoto();
                   }
                 },
-                onCapturePressed: _capturePhoto,
-                onSwitchCameraPressed: () async {
-                  setState(() => _vm.isLoading = true);
-
-                  if (_cameraState != null) {
-                    await _cameraState!.switchCameraSensor();
-                  }
-
-                  setState(() => _vm.isLoading = false);
+                onCapturePressed: _onCapturePressed,
+                onSwitchCameraPressed: _switchCamera,
+                onPhotoModePressed: () {
+                  if (_vm.isRecording) return;
+                  setState(() {
+                    _vm.setVideoMode(false);
+                  });
+                  debugPrint('📷 Switched to Photo mode');
+                },
+                onVideoModePressed: () {
+                  if (_vm.isRecording) return;
+                  setState(() {
+                    _vm.setVideoMode(true);
+                  });
+                  debugPrint('🎥 Switched to Video mode');
                 },
               ),
 
-              // Popups
+              // Popups (giữ nguyên tất cả popups của bạn)
               if (_vm.showRatioPopup)
                 RatioPopup(
                   isVisible: _vm.showRatioPopup,
@@ -406,10 +529,14 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                   currentZoom: _vm.currentZoom,
                   minZoom: _vm.minZoom,
                   maxZoom: _vm.maxZoom,
-                  onChanged: (z) {
-                    setState(() {
-                      _vm.setZoom(z);
-                    });
+                  onChanged: (z) async {
+                    if (_controller != null &&
+                        _controller!.value.isInitialized) {
+                      await _controller!.setZoomLevel(z);
+                      setState(() {
+                        _vm.setZoom(z);
+                      });
+                    }
                   },
                 ),
 
@@ -417,10 +544,16 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 BrightnessPopup(
                   isVisible: _vm.showBrightnessPopup,
                   brightnessValue: _vm.brightnessValue,
-                  onChanged: (b) {
-                    setState(() {
-                      _vm.setBrightness(b);
-                    });
+                  onChanged: (b) async {
+                    if (_controller != null &&
+                        _controller!.value.isInitialized) {
+                      // Exposure compensation: -1.0 to 1.0
+                      final exposure = (b - 0.5) * 2.0;
+                      await _controller!.setExposureOffset(exposure);
+                      setState(() {
+                        _vm.setBrightness(b);
+                      });
+                    }
                   },
                 ),
 
@@ -490,10 +623,14 @@ class _V169CameraScreenState extends State<V169CameraScreen> {
                 ExposurePopup(
                   isVisible: _vm.showExposurePopup,
                   exposureValue: _vm.exposureValue,
-                  onChanged: (v) {
-                    setState(() {
-                      _vm.setExposure(v);
-                    });
+                  onChanged: (v) async {
+                    if (_controller != null &&
+                        _controller!.value.isInitialized) {
+                      await _controller!.setExposureOffset(v);
+                      setState(() {
+                        _vm.setExposure(v);
+                      });
+                    }
                   },
                   onClose: () {
                     setState(() {

@@ -30,6 +30,8 @@ class CameraViewModel {
   double currentZoom = 1.0;
   bool isLoading = false;
   bool isCapturing = false;
+  bool isVideoMode = false; // Mặc định là photo mode
+  bool isRecording = false;
   double ampValue = 0.5;
   double brightnessValue = 0.5;
   double minZoom = 1.0;
@@ -164,5 +166,13 @@ class CameraViewModel {
 
   void updateLastCapturedPhoto(String? path) {
     lastCapturedPhotoPath = path;
+  }
+
+  void setVideoMode(bool value) {
+    isVideoMode = value;
+  }
+
+  void setRecording(bool value) {
+    isRecording = value;
   }
 }

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'services/photo_storage_service.dart';
 import 'views/home/home_screen.dart';
 import 'app/config/app_colors.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  Hive.registerAdapter(MediaModelAdapter());
+  await Hive.openBox<MediaModel>(PhotoStorageService.mediaBoxName);
   runApp(const MyApp());
 }
 

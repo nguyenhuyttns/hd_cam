@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:video_player/video_player.dart';
 import '../../services/photo_storage_service.dart';
-import '../../view_models/gallery_view_model.dart';
 
 class GalleryScreen extends StatefulWidget {
   const GalleryScreen({super.key});
@@ -10,27 +12,14 @@ class GalleryScreen extends StatefulWidget {
 }
 
 class _GalleryScreenState extends State<GalleryScreen> {
-  late final GalleryViewModel _viewModel;
-
   @override
   void initState() {
     super.initState();
-    _viewModel = GalleryViewModel();
-    _viewModel.addListener(_onViewModelChanged);
-    _viewModel.initialize();
   }
 
   @override
   void dispose() {
-    _viewModel.removeListener(_onViewModelChanged);
-    _viewModel.dispose();
     super.dispose();
-  }
-
-  void _onViewModelChanged() {
-    if (mounted) {
-      setState(() {});
-    }
   }
 
   @override
@@ -53,45 +42,39 @@ class _GalleryScreenState extends State<GalleryScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.white),
-              onPressed: () => _viewModel.refreshPhotos(),
+              onPressed: () {
+                if (mounted) {
+                  setState(() {});
+                }
+              },
             ),
           ],
         ),
-        body: _buildBody(),
+        body: ValueListenableBuilder<Box<MediaModel>>(
+          valueListenable: Hive.box<MediaModel>(
+            PhotoStorageService.mediaBoxName,
+          ).listenable(),
+          builder: (context, box, _) {
+            return _buildBody(box);
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildBody() {
-    if (_viewModel.isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
+  Widget _buildBody(Box<MediaModel> box) {
+    final List<_GalleryItem> items = [];
+
+    for (final media in box.values) {
+      final file = File(media.filePath);
+      if (file.existsSync()) {
+        items.add(_GalleryItem(media: media, file: file));
+      }
     }
 
-    if (_viewModel.hasError) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 64),
-            const SizedBox(height: 16),
-            Text(
-              _viewModel.error,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => _viewModel.refreshPhotos(),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
+    items.sort((a, b) => b.media.createdAt.compareTo(a.media.createdAt));
 
-    if (_viewModel.photos.isEmpty) {
+    if (items.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -103,12 +86,12 @@ class _GalleryScreenState extends State<GalleryScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No photos found',
+              'No media found',
               style: TextStyle(color: Colors.grey[400], fontSize: 18),
             ),
             const SizedBox(height: 8),
             Text(
-              'Take some photos with the camera',
+              'Capture photos or videos with the camera',
               style: TextStyle(color: Colors.grey[500], fontSize: 14),
             ),
           ],
@@ -124,11 +107,24 @@ class _GalleryScreenState extends State<GalleryScreen> {
         mainAxisSpacing: 4,
         childAspectRatio: 1,
       ),
-      itemCount: _viewModel.photos.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final photo = _viewModel.photos[index];
+        final item = items[index];
+        final isVideo = item.media.mediaType == 'video';
         return GestureDetector(
-          onTap: () => _showImageDetail(photo),
+          onTap: () {
+            if (isVideo) {
+              _showVideoDetail(item);
+            } else {
+              final photo = PhotoInfo(
+                fileName: item.media.fileName,
+                filePath: item.media.filePath,
+                createdAt: item.media.createdAt,
+                file: item.file,
+              );
+              _showImageDetail(photo);
+            }
+          },
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
@@ -136,19 +132,36 @@ class _GalleryScreenState extends State<GalleryScreen> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                photo.file,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey[700],
-                    child: Icon(
-                      Icons.broken_image,
-                      color: Colors.grey[500],
-                      size: 40,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (!isVideo)
+                    Image.file(
+                      item.file,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey[700],
+                          child: Icon(
+                            Icons.broken_image,
+                            color: Colors.grey[500],
+                            size: 40,
+                          ),
+                        );
+                      },
+                    )
+                  else
+                    Container(
+                      color: Colors.black,
+                      child: const Center(
+                        child: Icon(
+                          Icons.play_circle_fill,
+                          color: Colors.white,
+                          size: 40,
+                        ),
+                      ),
                     ),
-                  );
-                },
+                ],
               ),
             ),
           ),
@@ -157,22 +170,275 @@ class _GalleryScreenState extends State<GalleryScreen> {
     );
   }
 
+  void _showVideoDetail(_GalleryItem item) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VideoDetailScreen(
+          fileName: item.media.fileName,
+          filePath: item.media.filePath,
+          createdAt: item.media.createdAt,
+          file: item.file,
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      setState(() {});
+    }
+  }
+
   void _showImageDetail(PhotoInfo photo) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ImageDetailScreen(
           photoInfo: photo,
-          onDelete: _viewModel.deletePhoto,
+          onDelete: PhotoStorageService.deletePhoto,
         ),
       ),
     );
 
     // Nếu có thay đổi (xóa ảnh), reload
-    if (result == true) {
-      await _viewModel.refreshPhotos();
+    if (result == true && mounted) {
+      setState(() {});
     }
   }
+}
+
+class VideoDetailScreen extends StatefulWidget {
+  final String fileName;
+  final String filePath;
+  final DateTime createdAt;
+  final File file;
+
+  const VideoDetailScreen({
+    super.key,
+    required this.fileName,
+    required this.filePath,
+    required this.createdAt,
+    required this.file,
+  });
+
+  @override
+  State<VideoDetailScreen> createState() => _VideoDetailScreenState();
+}
+
+class _VideoDetailScreenState extends State<VideoDetailScreen> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.file(widget.file)
+      ..initialize().then((_) {
+        if (mounted) {
+          setState(() {
+            _isInitialized = true;
+          });
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.fileName,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.white),
+            onPressed: () => _showDeleteDialog(context),
+          ),
+        ],
+      ),
+      body: Center(
+        child: _isInitialized
+            ? GestureDetector(
+                onTap: () {
+                  if (_controller.value.isPlaying) {
+                    _controller.pause();
+                  } else {
+                    _controller.play();
+                  }
+                  setState(() {});
+                },
+                child: AspectRatio(
+                  aspectRatio: _controller.value.aspectRatio,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      VideoPlayer(_controller),
+                      if (!_controller.value.isPlaying)
+                        const Icon(
+                          Icons.play_circle_fill,
+                          color: Colors.white,
+                          size: 64,
+                        ),
+                    ],
+                  ),
+                ),
+              )
+            : const CircularProgressIndicator(color: Colors.white),
+      ),
+      bottomNavigationBar: _buildBottomInfo(context),
+    );
+  }
+
+  Widget _buildBottomInfo(BuildContext context) {
+    return Container(
+      color: Colors.black.withOpacity(0.8),
+      padding: const EdgeInsets.all(16),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today,
+                  color: Colors.white70,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _formatDate(widget.createdAt),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.folder, color: Colors.white70, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.filePath,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Delete Video',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            'Are you sure you want to delete this video? This action cannot be undone.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (BuildContext loadingContext) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
+                  },
+                );
+
+                final photoInfo = PhotoInfo(
+                  fileName: widget.fileName,
+                  filePath: widget.filePath,
+                  createdAt: widget.createdAt,
+                  file: widget.file,
+                );
+
+                final success = await PhotoStorageService.deletePhoto(
+                  photoInfo,
+                );
+
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+
+                if (context.mounted) {
+                  Navigator.pop(context, true);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success
+                            ? '✓ Video deleted successfully'
+                            : '✗ Failed to delete video',
+                      ),
+                      backgroundColor: success ? Colors.green : Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Delete',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _GalleryItem {
+  final MediaModel media;
+  final File file;
+
+  _GalleryItem({required this.media, required this.file});
 }
 
 class ImageDetailScreen extends StatelessWidget {

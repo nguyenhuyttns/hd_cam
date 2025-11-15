@@ -5,20 +5,30 @@ class BottomControls extends StatelessWidget {
   final bool showBottomControls;
   final bool isLoading;
   final bool isCapturing;
+  final bool isVideoMode;
+  final bool isRecording;
+  final int recordingSeconds;
   final String? lastPhotoPath;
   final VoidCallback onGalleryPressed;
   final VoidCallback onCapturePressed;
   final VoidCallback onSwitchCameraPressed;
+  final VoidCallback onPhotoModePressed;
+  final VoidCallback onVideoModePressed;
 
   const BottomControls({
     super.key,
     required this.showBottomControls,
     required this.isLoading,
     required this.isCapturing,
+    required this.isVideoMode,
+    required this.isRecording,
+    required this.recordingSeconds,
     this.lastPhotoPath,
     required this.onGalleryPressed,
     required this.onCapturePressed,
     required this.onSwitchCameraPressed,
+    required this.onPhotoModePressed,
+    required this.onVideoModePressed,
   });
 
   @override
@@ -38,6 +48,9 @@ class BottomControls extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(height: 20),
+
+                if (isVideoMode && isRecording) _buildRecordingTimer(),
+                if (isVideoMode && isRecording) const SizedBox(height: 8),
 
                 // Mode selector (Photo/Video)
                 _buildModeSelector(),
@@ -60,21 +73,47 @@ class BottomControls extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildModeButton('Photo', true),
+        _buildModeButton('Photo', !isVideoMode, onPhotoModePressed),
         const SizedBox(width: 32),
-        _buildModeButton('Video', false),
+        _buildModeButton('Video', isVideoMode, onVideoModePressed),
       ],
     );
   }
 
-  Widget _buildModeButton(String label, bool isSelected) {
-    return Text(
-      label,
-      style: TextStyle(
-        color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
-        fontSize: 16,
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+  Widget _buildModeButton(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
+          fontSize: 16,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+        ),
       ),
+    );
+  }
+
+  Widget _buildRecordingTimer() {
+    final minutes = recordingSeconds ~/ 60;
+    final seconds = recordingSeconds % 60;
+    final text =
+        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.circle, color: Colors.red, size: 10),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.red,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
@@ -132,17 +171,26 @@ class BottomControls extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isCapturing ? Colors.grey : Colors.white,
+                  color: isVideoMode
+                      ? (isRecording ? Colors.red : Colors.white)
+                      : (isCapturing ? Colors.grey : Colors.white),
                   width: 5,
                 ),
               ),
               child: Container(
                 margin: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: isCapturing ? Colors.grey : Colors.white,
-                  shape: BoxShape.circle,
+                  color: isVideoMode
+                      ? Colors.red
+                      : (isCapturing ? Colors.grey : Colors.white),
+                  shape: isVideoMode && isRecording
+                      ? BoxShape.rectangle
+                      : BoxShape.circle,
+                  borderRadius: isVideoMode && isRecording
+                      ? BorderRadius.circular(10)
+                      : null,
                 ),
-                child: isCapturing
+                child: !isVideoMode && isCapturing
                     ? const Padding(
                         padding: EdgeInsets.all(16.0),
                         child: CircularProgressIndicator(
